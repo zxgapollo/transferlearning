@@ -1,16 +1,14 @@
 # coding=utf-8
 import torch
 from network import img_network
+from network import OS_CNN
 
 
 def get_fea(args):
-    if args.dataset == 'dg5':
-        net = img_network.DTNBase()
-    elif args.net.startswith('res'):
-        net = img_network.ResBase(args.net)
-    else:
-        net = img_network.VGGBase(args.net)
-    return net
+    if args.net.startswith('OS') :
+        return OS_CNN()
+
+
 
 
 def accuracy(network, loader):
