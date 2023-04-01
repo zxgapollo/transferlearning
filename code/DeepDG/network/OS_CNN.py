@@ -125,6 +125,7 @@ class OS_CNN(nn.Module):
             out_put_channel_numebr = out_put_channel_numebr+ final_layer_parameters[1] 
             
         self.hidden = nn.Linear(out_put_channel_numebr, n_class)
+        self.in_features = 96
 
     def forward(self, X):
         

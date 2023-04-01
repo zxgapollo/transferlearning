@@ -6,7 +6,7 @@ from network import OS_CNN
 
 def get_fea(args):
     if args.net.startswith('OS') :
-        return OS_CNN()
+        return OS_CNN.OS_CNN(layer_parameter_list=args.layer_parameter_list, n_class = 5)
 
 
 
