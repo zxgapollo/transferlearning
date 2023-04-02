@@ -160,7 +160,8 @@ if __name__ == '__main__':
             acc_record['train'] = np.mean(np.array([modelopera.accuracy(algorithm, train_loaders)]))
             acc_record['valid'] = np.mean(np.array([modelopera.accuracy(algorithm, eval_loaders)]))
             acc_record['target'] = np.mean(np.array([modelopera.accuracy(algorithm, target_loaders)]))
-            s += ('train' + '_acc:%.4f,' % acc_record['train'])  +  ('valid' + '_acc:%.4f,' % acc_record['valid']) +
+            s += ('train' + '_acc:%.4f,' % acc_record['train'])  + \
+                 ('valid' + '_acc:%.4f,' % acc_record['valid']) + \
                  ('target' + '_acc:%.4f,' % acc_record['target'])  
             # for item in acc_type_list:
             #     acc_record[item] = np.mean(np.array([modelopera.accuracy(
@@ -169,7 +170,7 @@ if __name__ == '__main__':
             print(s[:-1])
             if acc_record['valid'] > best_valid_acc:
                 best_valid_acc = acc_record['valid']
-                #target_acc = acc_record['target']
+                target_acc = acc_record['target']
             if args.save_model_every_checkpoint:
                 save_checkpoint(f'model_epoch{epoch}.pkl', algorithm, args)
             print('total cost time: %.4f' % (time.time()-sss))
@@ -178,7 +179,7 @@ if __name__ == '__main__':
     save_checkpoint('model.pkl', algorithm, args)
 
     print('valid acc: %.4f' % best_valid_acc)
-    #print('DG result: %.4f' % target_acc)
+    print('DG result: %.4f' % target_acc)
 
     with open(os.path.join(args.output, 'done.txt'), 'w') as f:
         f.write('done\n')
