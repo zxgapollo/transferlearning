@@ -293,7 +293,7 @@ def get_img_dataloader(args):
     test_loaders = [DataLoader(
         dataset=train_dataset + test_dataset,
         batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
-        num_workers=args.N_WORKERS,
+        num_workers=4,
         drop_last=False,
         shuffle=False)]
 
