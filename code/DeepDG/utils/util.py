@@ -128,7 +128,7 @@ def img_param_init(args):
         elif args.dataset == 'office':
             args.num_classes = 31
         elif args.dataset == 'PACS':
-            args.num_classes = 7
+            args.num_classes = 5
         elif args.dataset == 'VLCS':
             args.num_classes = 5
     return args

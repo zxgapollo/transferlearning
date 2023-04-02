@@ -104,8 +104,12 @@ if __name__ == '__main__':
     set_random_seed(args.seed)
 
     loss_list = alg_loss_dict(args)
-    train_loaders, eval_loaders = get_img_dataloader(args)
+    train_iter_loaders, train_loaders, eval_loaders = get_img_dataloader(args)
     eval_name_dict = train_valid_target_eval_names(args)
+    print(eval_name_dict)
+    eval_name_dict = {'train': [0], 'valid': [1]}
+    
+
     algorithm_class = alg.get_algorithm_class(args.algorithm)
     algorithm = algorithm_class(args).cuda()
     algorithm.train()
@@ -122,12 +126,13 @@ if __name__ == '__main__':
         print('start training fft teacher net')
         opt1 = get_optimizer(algorithm.teaNet, args, isteacher=True)
         sch1 = get_scheduler(opt1, args)
-        algorithm.teanettrain(train_loaders, n_steps, opt1, sch1)
+        algorithm.teanettrain(train_iter_loaders, n_steps, opt1, sch1)
         print('complet time:%.4f' % (time.time()-ms))
 
     acc_record = {}
-    acc_type_list = ['train', 'valid', 'target']
-    train_minibatches_iterator = zip(*train_loaders)
+    #acc_type_list = ['train', 'valid', 'target']
+    acc_type_list = ['train', 'valid']
+    train_minibatches_iterator = zip(*train_iter_loaders)
     best_valid_acc, target_acc = 0, 0
     print('===========start training===========')
     sss = time.time()
@@ -151,15 +156,18 @@ if __name__ == '__main__':
             for item in loss_list:
                 s += (item+'_loss:%.4f,' % step_vals[item])
             print(s[:-1])
-            s = ''
-            for item in acc_type_list:
-                acc_record[item] = np.mean(np.array([modelopera.accuracy(
-                    algorithm, eval_loaders[i]) for i in eval_name_dict[item]]))
-                s += (item+'_acc:%.4f,' % acc_record[item])
+            s = ''   
+            acc_record['train'] = np.mean(np.array([modelopera.accuracy(algorithm, train_loaders)]))
+            acc_record['valid'] = np.mean(np.array([modelopera.accuracy(algorithm, eval_loaders)]))
+            s += (item+'_acc:%.4f,' % acc_record[item])      
+            # for item in acc_type_list:
+            #     acc_record[item] = np.mean(np.array([modelopera.accuracy(
+            #         algorithm, eval_loaders[i]) for i in eval_name_dict[item]]))
+            #     s += (item+'_acc:%.4f,' % acc_record[item])
             print(s[:-1])
             if acc_record['valid'] > best_valid_acc:
                 best_valid_acc = acc_record['valid']
-                target_acc = acc_record['target']
+                #target_acc = acc_record['target']
             if args.save_model_every_checkpoint:
                 save_checkpoint(f'model_epoch{epoch}.pkl', algorithm, args)
             print('total cost time: %.4f' % (time.time()-sss))
@@ -168,7 +176,7 @@ if __name__ == '__main__':
     save_checkpoint('model.pkl', algorithm, args)
 
     print('valid acc: %.4f' % best_valid_acc)
-    print('DG result: %.4f' % target_acc)
+    #print('DG result: %.4f' % target_acc)
 
     with open(os.path.join(args.output, 'done.txt'), 'w') as f:
         f.write('done\n')

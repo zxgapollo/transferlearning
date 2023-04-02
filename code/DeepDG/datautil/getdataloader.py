@@ -279,22 +279,29 @@ def get_img_dataloader(args):
 
     batch_size = 16
 
-    train_dataset = list(TensorDataset(X_train, Y_train))
+    train_dataset = TensorDataset(X_train, Y_train)
     # train_loader = DataLoader(train_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=True)
-    test_dataset = list(TensorDataset(X_test, Y_test))
+    test_dataset = TensorDataset(X_test, Y_test)
     # test_loader = DataLoader(test_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=False)
 
-    train_loaders = [InfiniteDataLoader(
+    train_iter_loader = [InfiniteDataLoader(
         dataset=train_dataset,
         weights=None,
-        batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2)
-        num_workers=4)]
-
-    test_loaders = [DataLoader(
-        dataset=train_dataset + test_dataset,
         batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
-        num_workers=4,
+        num_workers=0)]
+
+    train_loader = [DataLoader(
+        dataset=train_dataset,
+        batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
+        num_workers=0,
         drop_last=False,
         shuffle=False)]
 
-    return train_loader, test_loader
+    test_loader = [DataLoader(
+        dataset=test_dataset,
+        batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
+        num_workers=0,
+        drop_last=False,
+        shuffle=False)]
+
+    return train_iter_loader,train_loader, test_loader
