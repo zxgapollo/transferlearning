@@ -224,6 +224,10 @@ def get_img_dataloader(args):
     # b = np.concatenate([b1, b2], axis=0)
     # c = np.concatenate([c1, c2], axis=0)
     # g = np.concatenate([g1, g2], axis=0)
+
+
+    # train_loader 1500
+
     a = a1
     b = b1
     c = c1
@@ -251,6 +255,39 @@ def get_img_dataloader(args):
     X_test = X_test.to(device)
     Y_test = torch.from_numpy(Y_test).to(device)
 
+
+
+
+
+    # target_loader 2700
+    a = a2
+    b = b2
+    c = c2
+    arrays = [a, b, c]
+    X_2700 = np.stack(arrays, axis=1)
+    Y_2700 = g1
+    # X_train = np.concatenate([X[:40000], X[50000:90000]], axis=0)
+    # X_test = np.concatenate([X[40000:50000], X[90000:]], axis=0)
+    # Y_train = np.concatenate([Y[:40000], Y[50000:90000]], axis=0)
+    # Y_test = np.concatenate([Y[40000:50000], Y[90000:]], axis=0)
+    #X_train = X[:40000]
+    X_test_2700 = X_2700
+    #Y_train = Y[:40000]
+    Y_test_2700 = Y_2700
+    
+    device = "cuda:0"
+    #X_train = torch.from_numpy(X_train)
+    #X_train.requires_grad = False
+    #X_train = X_train.to(device)
+    #Y_train = torch.from_numpy(Y_train).to(device)
+
+
+    # X_test = torch.from_numpy(X_test)
+    # X_test.requires_grad = False
+    # X_test = X_test.to(device)
+    # Y_test = torch.from_numpy(Y_test).to(device)
+
+
     print(X_train.shape)
  
 
@@ -277,12 +314,13 @@ def get_img_dataloader(args):
 
 
 
-    batch_size = 16
+    batch_size = 32
 
     train_dataset = TensorDataset(X_train, Y_train)
     # train_loader = DataLoader(train_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=True)
     test_dataset = TensorDataset(X_test, Y_test)
     # test_loader = DataLoader(test_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=False)
+    target_dataset = TensorDataset(X_test_2700, Y_test_2700)
 
     train_iter_loader = [InfiniteDataLoader(
         dataset=train_dataset,
@@ -290,18 +328,22 @@ def get_img_dataloader(args):
         batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
         num_workers=0)]
 
-    train_loader = [DataLoader(
-        dataset=train_dataset,
-        batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
-        num_workers=0,
-        drop_last=False,
-        shuffle=False)]
+    train_loader = DataLoader(train_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=False)
+    target_loader = DataLoader(target_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=False)
 
-    test_loader = [DataLoader(
-        dataset=test_dataset,
-        batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
-        num_workers=0,
-        drop_last=False,
-        shuffle=False)]
+    # train_loader = [DataLoader(
+    #     dataset=train_dataset,
+    #     batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
+    #     num_workers=0,
+    #     drop_last=False,
+    #     shuffle=False)]
 
-    return train_iter_loader,train_loader, test_loader
+    # test_loader = [DataLoader(
+    #     dataset=test_dataset,
+    #     batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
+    #     num_workers=0,
+    #     drop_last=False,
+    #     shuffle=False)]
+
+    return train_iter_loader,train_loader, test_loader, target_loader

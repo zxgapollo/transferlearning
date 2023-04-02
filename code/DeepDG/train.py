@@ -88,7 +88,7 @@ def get_args():
                         default="train_output", help='result output path')
     parser.add_argument('--weight_decay', type=float, default=5e-4)
     args = parser.parse_args()
-    args.steps_per_epoch = 100
+    args.steps_per_epoch = 2000
     args.data_dir = args.data_file+args.data_dir
     os.environ['CUDA_VISIBLE_DEVICS'] = args.gpu_id
     os.makedirs(args.output, exist_ok=True)
@@ -104,10 +104,10 @@ if __name__ == '__main__':
     set_random_seed(args.seed)
 
     loss_list = alg_loss_dict(args)
-    train_iter_loaders, train_loaders, eval_loaders = get_img_dataloader(args)
+    train_iter_loaders, train_loaders, eval_loaders, target_loaders = get_img_dataloader(args)
     eval_name_dict = train_valid_target_eval_names(args)
     print(eval_name_dict)
-    eval_name_dict = {'train': [0], 'valid': [1]}
+    eval_name_dict = {'train': [0], 'valid': [1], 'target': [2]}
     
 
     algorithm_class = alg.get_algorithm_class(args.algorithm)
@@ -130,8 +130,8 @@ if __name__ == '__main__':
         print('complet time:%.4f' % (time.time()-ms))
 
     acc_record = {}
-    #acc_type_list = ['train', 'valid', 'target']
-    acc_type_list = ['train', 'valid']
+    acc_type_list = ['train', 'valid', 'target']
+    #acc_type_list = ['train', 'valid']
     train_minibatches_iterator = zip(*train_iter_loaders)
     best_valid_acc, target_acc = 0, 0
     print('===========start training===========')
@@ -159,7 +159,9 @@ if __name__ == '__main__':
             s = ''   
             acc_record['train'] = np.mean(np.array([modelopera.accuracy(algorithm, train_loaders)]))
             acc_record['valid'] = np.mean(np.array([modelopera.accuracy(algorithm, eval_loaders)]))
-            s += ('train' + '_acc:%.4f,' % acc_record['train'])  +  ('train' + '_acc:%.4f,' % acc_record['valid'])   
+            acc_record['target'] = np.mean(np.array([modelopera.accuracy(algorithm, target_loaders)]))
+            s += ('train' + '_acc:%.4f,' % acc_record['train'])  +  ('valid' + '_acc:%.4f,' % acc_record['valid']) +
+                 ('target' + '_acc:%.4f,' % acc_record['target'])  
             # for item in acc_type_list:
             #     acc_record[item] = np.mean(np.array([modelopera.accuracy(
             #         algorithm, eval_loaders[i]) for i in eval_name_dict[item]]))
