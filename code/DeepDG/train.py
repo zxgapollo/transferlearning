@@ -1,188 +1,125 @@
 # coding=utf-8
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.fft
 
-import os
-import sys
-import time
-import numpy as np
-import argparse
-
-from alg.opt import *
-from alg import alg, modelopera
-from utils.util import set_random_seed, save_checkpoint, print_args, train_valid_target_eval_names, alg_loss_dict, Tee, img_param_init, print_environ
-from datautil.getdataloader import get_img_dataloader
+from alg.modelopera import get_fea
+from network import common_network
+from alg.algs.base import Algorithm
 
 
-def get_args():
-    parser = argparse.ArgumentParser(description='DG')
-    parser.add_argument('--algorithm', type=str, default="ERM")
-    parser.add_argument('--alpha', type=float,
-                        default=1, help='DANN dis alpha')
-    parser.add_argument('--anneal_iters', type=int,
-                        default=500, help='Penalty anneal iters used in VREx')
-    parser.add_argument('--batch_size', type=int,
-                        default=32, help='batch_size')
-    parser.add_argument('--beta', type=float,
-                        default=1, help='DIFEX beta')
-    parser.add_argument('--beta1', type=float, default=0.5,
-                        help='Adam hyper-param')
-    parser.add_argument('--bottleneck', type=int, default=256)
-    parser.add_argument('--checkpoint_freq', type=int,
-                        default=3, help='Checkpoint every N epoch')
-    parser.add_argument('--classifier', type=str,
-                        default="linear", choices=["linear", "wn"])
-    parser.add_argument('--data_file', type=str, default='',
-                        help='root_dir')
-    parser.add_argument('--dataset', type=str, default='office')
-    parser.add_argument('--data_dir', type=str, default='', help='data dir')
-    parser.add_argument('--dis_hidden', type=int,
-                        default=256, help='dis hidden dimension')
-    parser.add_argument('--disttype', type=str, default='2-norm',
-                        choices=['1-norm', '2-norm', 'cos', 'norm-2-norm', 'norm-1-norm'])
-    parser.add_argument('--gpu_id', type=str, nargs='?',
-                        default='0', help="device id to run")
-    parser.add_argument('--groupdro_eta', type=float,
-                        default=1, help="groupdro eta")
-    parser.add_argument('--inner_lr', type=float,
-                        default=1e-2, help="learning rate used in MLDG")
-    parser.add_argument('--lam', type=float,
-                        default=1, help="tradeoff hyperparameter used in VREx")
-    parser.add_argument('--layer', type=str, default="bn",
-                        choices=["ori", "bn"])
-    parser.add_argument('--lr', type=float, default=1e-2, help="learning rate")
-    parser.add_argument('--lr_decay', type=float, default=0.75, help='for sgd')
-    parser.add_argument('--lr_decay1', type=float,
-                        default=1.0, help='for pretrained featurizer')
-    parser.add_argument('--lr_decay2', type=float, default=1.0,
-                        help='inital learning rate decay of network')
-    parser.add_argument('--lr_gamma', type=float,
-                        default=0.0003, help='for optimizer')
-    parser.add_argument('--max_epoch', type=int,
-                        default=120, help="max iterations")
-    parser.add_argument('--mixupalpha', type=float,
-                        default=0.2, help='mixup hyper-param')
-    parser.add_argument('--mldg_beta', type=float,
-                        default=1, help="mldg hyper-param")
-    parser.add_argument('--mmd_gamma', type=float,
-                        default=1, help='MMD, CORAL hyper-param')
-    parser.add_argument('--momentum', type=float,
-                        default=0.9, help='for optimizer')
-    parser.add_argument('--net', type=str, default='resnet50',
-                        help="featurizer: vgg16, resnet50, resnet101,DTNBase")
-    parser.add_argument('--N_WORKERS', type=int, default=4)
-    parser.add_argument('--rsc_f_drop_factor', type=float,
-                        default=1/3, help='rsc hyper-param')
-    parser.add_argument('--rsc_b_drop_factor', type=float,
-                        default=1/3, help='rsc hyper-param')
-    parser.add_argument('--save_model_every_checkpoint', action='store_true')
-    parser.add_argument('--schuse', action='store_true')
-    parser.add_argument('--schusech', type=str, default='cos')
-    parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--split_style', type=str, default='strat',
-                        help="the style to split the train and eval datasets")
-    parser.add_argument('--task', type=str, default="img_dg",
-                        choices=["img_dg"], help='now only support image tasks')
-    parser.add_argument('--tau', type=float, default=1, help="andmask tau")
-    parser.add_argument('--test_envs', type=int, nargs='+',
-                        default=[0], help='target domains')
-    parser.add_argument('--output', type=str,
-                        default="train_output", help='result output path')
-    parser.add_argument('--weight_decay', type=float, default=5e-4)
-    args = parser.parse_args()
-    args.steps_per_epoch = 2000
-    args.data_dir = args.data_file+args.data_dir
-    os.environ['CUDA_VISIBLE_DEVICS'] = args.gpu_id
-    os.makedirs(args.output, exist_ok=True)
-    sys.stdout = Tee(os.path.join(args.output, 'out.txt'))
-    sys.stderr = Tee(os.path.join(args.output, 'err.txt'))
-    args = img_param_init(args)
-    print_environ()
-    return args
+class DIFEX(Algorithm):
+    def __init__(self, args):
+        super(DIFEX, self).__init__(args)
+        self.args = args
+        self.featurizer = get_fea(args)
+        self.bottleneck = common_network.feat_bottleneck(
+            self.featurizer.in_features, args.bottleneck, args.layer)
+        self.classifier = common_network.feat_classifier(
+            args.num_classes, args.bottleneck, args.classifier)
 
+        self.tfbd = args.bottleneck//2
 
-if __name__ == '__main__':
-    args = get_args()
-    set_random_seed(args.seed)
+        self.teaf = get_fea(args)
+        self.teab = common_network.feat_bottleneck(
+            self.featurizer.in_features, self.tfbd, args.layer)
+        self.teac = common_network.feat_classifier(
+            args.num_classes, self.tfbd, args.classifier)
+        self.teaNet = nn.Sequential(
+            self.teaf,
+            self.teab,
+            self.teac
+        )
 
-    loss_list = alg_loss_dict(args)
-    train_iter_loaders, train_loaders, eval_loaders, target_loaders = get_img_dataloader(args)
-    eval_name_dict = train_valid_target_eval_names(args)
-    print(eval_name_dict)
-    eval_name_dict = {'train': [0], 'valid': [1], 'target': [2]}
-    
+    def teanettrain(self, dataloaders, epochs, opt1, sch1):
+        self.teaNet.train()
+        minibatches_iterator = zip(*dataloaders)
+        for epoch in range(epochs):
+            minibatches = [(tdata) for tdata in next(minibatches_iterator)]
+            all_x = torch.cat([data[0].cuda().float() for data in minibatches])
+            #print(all_x.shape)
+            #all_z = torch.angle(torch.fft.fftn(all_x, dim=(2, 3)))
+            all_z_phase = torch.angle(torch.fft.fftn(all_x, dim=(-1)))
+            all_z_abs = torch.abs(torch.fft.fftn(all_x, dim=(-1)))
+            # inverse Fourier
+            const_abs = all_z_abs.mean()
+            all_z = const_abs * (torch.exp( torch.tensor(1j) * all_z_phase))
+            all_z = torch.abs(torch.fft.ifftn(all_z, dim=(-1)))
+            #print(all_z.shape)
+            all_y = torch.cat([data[1].cuda().long() for data in minibatches])
+            all_p = self.teaNet(all_z)
+            loss = F.cross_entropy(all_p, all_y, reduction='mean')
+            opt1.zero_grad()
+            loss.backward()
+            if ((epoch+1) % (int(self.args.steps_per_epoch*self.args.max_epoch*0.7)) == 0 or (epoch+1) % (int(self.args.steps_per_epoch*self.args.max_epoch*0.9)) == 0) and (not self.args.schuse):
+                for param_group in opt1.param_groups:
+                    param_group['lr'] = param_group['lr']*0.1
+            opt1.step()
+            if sch1:
+                sch1.step()
 
-    algorithm_class = alg.get_algorithm_class(args.algorithm)
-    algorithm = algorithm_class(args).cuda()
-    algorithm.train()
-    opt = get_optimizer(algorithm, args)
-    sch = get_scheduler(opt, args)
+            if epoch % int(self.args.steps_per_epoch) == 0 or epoch == epochs-1:
+                print('epoch: %d, cls loss: %.4f' % (epoch, loss))
+        self.teaNet.eval()
 
-    s = print_args(args, [])
-    print('=======hyper-parameter used========')
-    print(s)
+    def coral(self, x, y):
+        mean_x = x.mean(0, keepdim=True)
+        mean_y = y.mean(0, keepdim=True)
+        cent_x = x - mean_x
+        cent_y = y - mean_y
+        cova_x = (cent_x.t() @ cent_x) / (len(x) - 1)
+        cova_y = (cent_y.t() @ cent_y) / (len(y) - 1)
 
-    if 'DIFEX' in args.algorithm:
-        ms = time.time()
-        n_steps = args.max_epoch*args.steps_per_epoch
-        print('start training fft teacher net')
-        opt1 = get_optimizer(algorithm.teaNet, args, isteacher=True)
-        sch1 = get_scheduler(opt1, args)
-        algorithm.teanettrain(train_iter_loaders, n_steps, opt1, sch1)
-        print('complet time:%.4f' % (time.time()-ms))
+        mean_diff = (mean_x - mean_y).pow(2).mean()
+        cova_diff = (cova_x - cova_y).pow(2).mean()
 
-    acc_record = {}
-    acc_type_list = ['train', 'valid', 'target']
-    #acc_type_list = ['train', 'valid']
-    train_minibatches_iterator = zip(*train_iter_loaders)
-    best_valid_acc, target_acc = 0, 0
-    print('===========start training===========')
-    sss = time.time()
-    for epoch in range(args.max_epoch):
-        for iter_num in range(args.steps_per_epoch):
-            minibatches_device = [(data)
-                                  for data in next(train_minibatches_iterator)]
-            if args.algorithm == 'VREx' and algorithm.update_count == args.anneal_iters:
-                opt = get_optimizer(algorithm, args)
-                sch = get_scheduler(opt, args)
-            step_vals = algorithm.update(minibatches_device, opt, sch)
+        return mean_diff + cova_diff
 
-        if (epoch in [int(args.max_epoch*0.7), int(args.max_epoch*0.9)]) and (not args.schuse):
-            print('manually descrease lr')
-            for params in opt.param_groups:
-                params['lr'] = params['lr']*0.1
+    def update(self, minibatches, opt, sch):
+        all_x = torch.cat([data[0].cuda().float() for data in minibatches])
+        all_y = torch.cat([data[1].cuda().long() for data in minibatches])
+        with torch.no_grad():
+            #all_x1 = torch.angle(torch.fft.fftn(all_x, dim=(2, 3)))
+            all_x1 = torch.angle(torch.fft.fftn(all_x, dim=(-1)))
+            tfea = self.teab(self.teaf(all_x1)).detach()
 
-        if (epoch == (args.max_epoch-1)) or (epoch % args.checkpoint_freq == 0):
-            print('===========epoch %d===========' % (epoch))
-            s = ''
-            for item in loss_list:
-                s += (item+'_loss:%.4f,' % step_vals[item])
-            print(s[:-1])
-            s = ''   
-            acc_record['train'] = np.mean(np.array([modelopera.accuracy(algorithm, train_loaders)]))
-            acc_record['valid'] = np.mean(np.array([modelopera.accuracy(algorithm, eval_loaders)]))
-            acc_record['target'] = np.mean(np.array([modelopera.accuracy(algorithm, target_loaders)]))
-            s += ('train' + '_acc:%.4f,' % acc_record['train'])  + \
-                 ('valid' + '_acc:%.4f,' % acc_record['valid']) + \
-                 ('target' + '_acc:%.4f,' % acc_record['target'])  
-            # for item in acc_type_list:
-            #     acc_record[item] = np.mean(np.array([modelopera.accuracy(
-            #         algorithm, eval_loaders[i]) for i in eval_name_dict[item]]))
-            #     s += (item+'_acc:%.4f,' % acc_record[item])
-            print(s[:-1])
-            if acc_record['valid'] > best_valid_acc:
-                best_valid_acc = acc_record['valid']
-                target_acc = acc_record['target']
-            if args.save_model_every_checkpoint:
-                save_checkpoint(f'model_epoch{epoch}.pkl', algorithm, args)
-            print('total cost time: %.4f' % (time.time()-sss))
-            algorithm_dict = algorithm.state_dict()
+        all_z = self.bottleneck(self.featurizer(all_x))
+        loss1 = F.cross_entropy(self.classifier(all_z), all_y)
 
-    save_checkpoint('model.pkl', algorithm, args)
+        loss2 = F.mse_loss(all_z[:, :self.tfbd], tfea)*self.args.alpha
+        if self.args.disttype == '2-norm':
+            loss3 = -F.mse_loss(all_z[:, :self.tfbd],
+                                all_z[:, self.tfbd:])*self.args.beta
+        elif self.args.disttype == 'norm-2-norm':
+            loss3 = -F.mse_loss(all_z[:, :self.tfbd]/torch.norm(all_z[:, :self.tfbd], dim=1, keepdim=True),
+                                all_z[:, self.tfbd:]/torch.norm(all_z[:, self.tfbd:], dim=1, keepdim=True))*self.args.beta
+        elif self.args.disttype == 'norm-1-norm':
+            loss3 = -F.l1_loss(all_z[:, :self.tfbd]/torch.norm(all_z[:, :self.tfbd], dim=1, keepdim=True),
+                               all_z[:, self.tfbd:]/torch.norm(all_z[:, self.tfbd:], dim=1, keepdim=True))*self.args.beta
+        elif self.args.disttype == 'cos':
+            loss3 = torch.mean(F.cosine_similarity(
+                all_z[:, :self.tfbd], all_z[:, self.tfbd:]))*self.args.beta
+        loss4 = 0
+        if len(minibatches) > 1:
+            for i in range(len(minibatches)-1):
+                for j in range(i+1, len(minibatches)):
+                    loss4 += self.coral(all_z[i*self.args.batch_size:(i+1)*self.args.batch_size, self.tfbd:],
+                                        all_z[j*self.args.batch_size:(j+1)*self.args.batch_size, self.tfbd:])
+            loss4 = loss4*2/(len(minibatches) *
+                             (len(minibatches)-1))*self.args.lam
+        else:
+            loss4 = self.coral(all_z[:self.args.batch_size//2, self.tfbd:],
+                               all_z[self.args.batch_size//2:, self.tfbd:])
+            loss4 = loss4*self.args.lam
 
-    print('valid acc: %.4f' % best_valid_acc)
-    print('DG result: %.4f' % target_acc)
+        loss = loss1+loss2+loss3+loss4
+        opt.zero_grad()
+        loss.backward()
+        opt.step()
+        if sch:
+            sch.step()
+        return {'class': loss1.item(), 'dist': (loss2).item(), 'exp': (loss3).item(), 'align': loss4.item(), 'total': loss.item()}
 
-    with open(os.path.join(args.output, 'done.txt'), 'w') as f:
-        f.write('done\n')
-        f.write('total cost time:%s\n' % (str(time.time()-sss)))
-        f.write('valid acc:%.4f\n' % (best_valid_acc))
-        f.write('target acc:%.4f' % (target_acc))
+    def predict(self, x):
+        return self.classifier(self.bottleneck(self.featurizer(x)))
