@@ -274,8 +274,14 @@ def get_img_dataloader(args):
     X_test_2700 = X_2700
     #Y_train = Y[:40000]
     Y_test_2700 = Y_2700
+
+    X_test = torch.from_numpy(X_test_2700)
+    X_test.requires_grad = False
+    X_test = X_test.to(device)
+    Y_test = torch.from_numpy(Y_test_2700).to(device)
+
     
-    device = "cuda:0"
+    #device = "cuda:0"
     #X_train = torch.from_numpy(X_train)
     #X_train.requires_grad = False
     #X_train = X_train.to(device)
