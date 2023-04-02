@@ -38,10 +38,10 @@ class DIFEX(Algorithm):
         for epoch in range(epochs):
             minibatches = [(tdata) for tdata in next(minibatches_iterator)]
             all_x = torch.cat([data[0].cuda().float() for data in minibatches])
-            print(all_x.shape)
+            #print(all_x.shape)
             #all_z = torch.angle(torch.fft.fftn(all_x, dim=(2, 3)))
-            all_z = torch.angle(torch.fft.fftn(all_x, dim=(2)))
-            print(all_z.shape)
+            all_z = torch.angle(torch.fft.fftn(all_x, dim=(-1)))
+            #print(all_z.shape)
             all_y = torch.cat([data[1].cuda().long() for data in minibatches])
             all_p = self.teaNet(all_z)
             loss = F.cross_entropy(all_p, all_y, reduction='mean')
@@ -76,7 +76,7 @@ class DIFEX(Algorithm):
         all_y = torch.cat([data[1].cuda().long() for data in minibatches])
         with torch.no_grad():
             #all_x1 = torch.angle(torch.fft.fftn(all_x, dim=(2, 3)))
-            all_x1 = torch.angle(torch.fft.fftn(all_x, dim=(2)))
+            all_x1 = torch.angle(torch.fft.fftn(all_x, dim=(-1)))
             tfea = self.teab(self.teaf(all_x1)).detach()
 
         all_z = self.bottleneck(self.featurizer(all_x))

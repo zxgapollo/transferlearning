@@ -251,12 +251,13 @@ def get_img_dataloader(args):
     X_test = X_test.to(device)
     Y_test = torch.from_numpy(Y_test).to(device)
 
-    
+    print(X_train.shape)
+ 
 
 
     Max_kernel_size = 89
     start_kernel_size = 1
-    paramenter_number_of_layer_list = [8*128, 5*128*256 + 2*256*128]
+    paramenter_number_of_layer_list = [8*128*X_train.shape[1], 5*128*256 + 2*256*128]
 
 
 # add channel dimension to time series data
@@ -283,4 +284,4 @@ def get_img_dataloader(args):
     test_dataset = TensorDataset(X_test, Y_test)
     test_loader = DataLoader(test_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=False)
 
-    return train_loader, test_loader
+    return [train_loader], [test_loader]
