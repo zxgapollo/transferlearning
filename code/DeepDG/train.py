@@ -159,7 +159,7 @@ if __name__ == '__main__':
             s = ''   
             acc_record['train'] = np.mean(np.array([modelopera.accuracy(algorithm, train_loaders)]))
             acc_record['valid'] = np.mean(np.array([modelopera.accuracy(algorithm, eval_loaders)]))
-            s += (item+'_acc:%.4f,' % acc_record[item])      
+            s += ('train' + '_acc:%.4f,' % acc_record['train'])  +  ('train' + '_acc:%.4f,' % acc_record['valid'])   
             # for item in acc_type_list:
             #     acc_record[item] = np.mean(np.array([modelopera.accuracy(
             #         algorithm, eval_loaders[i]) for i in eval_name_dict[item]]))
