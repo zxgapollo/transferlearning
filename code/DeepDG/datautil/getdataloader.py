@@ -285,18 +285,16 @@ def get_img_dataloader(args):
     # test_loader = DataLoader(test_dataset, batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2), shuffle=False)
 
     train_loaders = [InfiniteDataLoader(
-        dataset=env,
+        dataset=train_dataset,
         weights=None,
         batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2)
-        num_workers=4)
-        for env in train_dataset]
+        num_workers=4)]
 
     test_loaders = [DataLoader(
-        dataset=env,
+        dataset=train_dataset + test_dataset,
         batch_size=max(int(min(X_train.shape[0] / 10, batch_size)),2),
         num_workers=args.N_WORKERS,
         drop_last=False,
-        shuffle=False)
-        for env in train_dataset + test_dataset]
+        shuffle=False)]
 
     return train_loader, test_loader
